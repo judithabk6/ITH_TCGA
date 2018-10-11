@@ -1,0 +1,17 @@
+
+GDC_TOKEN=gdc-user-token.2018-08-02T08_43_21.110Z.txt
+PROTECTED_FOLDERNAME=protected_maf_hg38
+PUBLIC_FOLDERNAME=public_somatic_maf_hg38
+CLINICAL_FOLDERNAME=clinical
+DATA_FOLDER=data
+
+python35_env_path=/bioinfo/users/jabecass/dl_tools/my_python35_sksurv
+python27_env_path=/bioinfo/users/jabecass/my_python27
+python36_env_path=/bioinfo/users/jabecass/my_python36
+smchet_path=/bioinfo/users/jabecass/dl_tools
+phyloWGS_path=/bioinfo/users/jabecass/dl_tools/phylowgs
+TORQUE_LOG_PATH=/data/tmp/torque_logs/jabecass/
+liftover_path=~/Documents/PhD/liftOver
+RPATH=/bioinfo/local/build/R/R-3.2.3/bin
+RPATH33=/bioinfo/local/build/R/R-3.3.2_centos/bin
+java_path=/bioinfo/local/build/Java/jdk1.8.0_74
