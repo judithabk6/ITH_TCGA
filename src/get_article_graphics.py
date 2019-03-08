@@ -117,11 +117,13 @@ for c in protected_nb_clones_cols:
     merged_col = c.replace('protected', 'merged')
     tmp_df = tmp_df.assign(**{merged_col: tmp_df.apply(lambda x: np.nan if pd.isnull(x[c]) or pd.isnull(x[public_col]) else 1, axis=1)})
 
+relevant_nb_clones = [c for c in tmp_df.columns if ('public' in c) and ('nb_clones' in c) and ('CSR' not in c) and ('baseline' not in c) and ('norm' not in c)]
+sub_tmp_df_both = tmp_df.loc[tmp_df[relevant_nb_clones].dropna(axis='index', how='all').index]
 fig, axes = plt.subplots(3, 4, figsize=(35, 20))
 for ii, folder in enumerate(['public', 'protected', 'merged']):
-    relevant_nb_clones = [c for c in tmp_df.columns if (folder in c) and ('nb_clones' in c) and ('CSR' not in c) and ('baseline' not in c) and ('norm' not in c)]
+    relevant_nb_clones = [c for c in sub_tmp_df_both.columns if (folder in c) and ('nb_clones' in c) and ('CSR' not in c) and ('baseline' not in c) and ('norm' not in c)]
     for i, loc in enumerate(cancer_locs):
-        relevant_tmp_df = tmp_df[tmp_df.cancer_loc==loc]
+        relevant_tmp_df = sub_tmp_df_both[sub_tmp_df_both.cancer_loc==loc]
         labels = venn.get_labels([relevant_tmp_df[c].dropna().index for c in relevant_nb_clones], fill=['number', 'logic'])
         labels_short = {k: v.split(': ')[1] for k,v in labels.items()}
         label_names = [c.split('_')[0].replace('pyclone', 'PyClone').replace('sciclone', 'SciClone').replace('baseline', 'Baseline').replace('expands', 'Expands') for c in relevant_nb_clones]
@@ -134,14 +136,14 @@ for ii, folder in enumerate(['public', 'protected', 'merged']):
                     fontsize=40, rotation=90, va='center', ha='center')
 
 
-    labels = venn.get_labels([tmp_df[c].dropna().index for c in relevant_nb_clones], fill=['number', 'logic'])
+    labels = venn.get_labels([sub_tmp_df_both[c].dropna().index for c in relevant_nb_clones], fill=['number', 'logic'])
     labels_short = {k: v.split(': ')[1] for k, v in labels.items()}
     label_names = [c.split('_')[0].replace('pyclone', 'PyClone').replace('sciclone', 'SciClone').replace('baseline', 'Baseline').replace('expands', 'Expands') for c in relevant_nb_clones]
     label_names_fig = ['' for l in label_names]
     ax = venn.venn4(labels_short, names=label_names_fig, colors=[colors_protected[i] for i in label_names], fontsize_text=22, fontsize_number=25, ax=axes[ii, 3])
     if ii==0:
         ax.legend(label_names, loc='center left', bbox_to_anchor=(1.1, 0.5), fontsize=30)
-    nb_samples_total = tmp_df[relevant_nb_clones].dropna(axis='index', how='all').shape[0]
+    nb_samples_total = sub_tmp_df_both[relevant_nb_clones].dropna(axis='index', how='all').shape[0]
     ax.set_title('All 3 types (n={n})'.format(n=nb_samples_total), fontsize=40)
 plt.savefig('{}/total_venn_total.pdf'.format(output_path), bbox_inches='tight')
 plt.close()
@@ -421,6 +423,51 @@ network_colors = pd.Series(color_list, index=alt_cols_plot)
 restricted_df_dict['no_purity1'] = restricted_df_dict['no_purity1'].assign(inv_T_cells=100-restricted_df_dict['no_purity1']['T cells'])
 methods = [c.split('_')[0] for c in alt_cols_plot]
 
+# compute pvalues for correlations
+pval_list = list()
+for ii, loc in enumerate(cancer_locs):
+    sub_df = restricted_df_dict['no_purity1'][(restricted_df_dict['no_purity1'].cancer_loc==loc)].dropna(subset=cols_restricted)
+    sub_df.rename(columns=dict(zip(cols_plot, alt_cols_plot)), inplace=True)
+    sns.set(font_scale=3)
+
+    df = sub_df[alt_cols_plot].copy()
+
+    pval = np.zeros([df.shape[1],df.shape[1]])
+    for i in range(df.shape[1]): # rows are the number of rows in the matrix.
+        for j in range(df.shape[1]):
+            JonI        = stats.pearsonr(x=df.iloc[:,i], y=df.iloc[:,j])
+            pval[i,j]  = JonI[1]
+    pval_list.append(pval.flatten())
+big_pval = np.concatenate(pval_list)
+big_pval_mul = multipletests(big_pval, method='fdr_bh')[1]
+pval_dict = dict()
+pval_len = int(len(big_pval_mul) / len(cancer_locs))
+for ii, loc in enumerate(cancer_locs):
+    loc_pval = big_pval_mul[ii*pval_len:(ii+1)*pval_len]
+    pval_dict[loc] = loc_pval.reshape(int(np.sqrt(pval_len)), int(np.sqrt(pval_len)))
+
+
+# get order...
+order_dict = dict()
+for ii, loc in enumerate(cancer_locs):
+    sub_df = restricted_df_dict['no_purity1'][(restricted_df_dict['no_purity1'].cancer_loc==loc)].dropna(subset=cols_restricted)
+    sub_df.rename(columns=dict(zip(cols_plot, alt_cols_plot)), inplace=True)
+    sns.set(font_scale=3)
+
+    df = sub_df[alt_cols_plot].copy()
+    pval = pval_dict[loc]
+    pval_nonsig = pval>0.05
+    annot = df.corr().as_matrix()
+    
+    annot = np.round(annot, 2).astype(str)
+    annot[pval_nonsig] = ''
+
+    #cg = sns.clustermap(df.corr(), figsize=(20, 20), cmap="vlag", vmin=-1, vmax=1, row_colors=network_colors, col_colors=network_colors, cbar_kws={"ticks":[-1, 0, 1]}, annot=annot, fmt='s', annot_kws={'fontsize':15})
+    cg = sns.clustermap(df.corr(), figsize=(20, 20), cmap="vlag", vmin=-1, vmax=1, row_colors=network_colors, col_colors=network_colors, cbar_kws={"ticks":[-1, 0, 1]}, annot=True, annot_kws={'fontsize':15})
+    order_labels = [t.get_text() for t in cg.ax_heatmap.get_xticklabels()]
+    original_order = df.corr().columns.tolist()
+    order_dict[loc] = np.array([original_order.index(u) for u in order_labels])
+
 
 #follow_labels = ['purity'] + ['{}_{}'.format(m, f) for m in ('PyClone', 'PhyloWGS', 'CSR', 'SciClone') for f in ['public', 'protected']]
 follow_labels = ['{}_{}'.format(m, f) for m in ('Expands', 'mutation_count') for f in ['public', 'protected']]
@@ -430,7 +477,17 @@ for ii, loc in enumerate(cancer_locs):
     sub_df = restricted_df_dict['no_purity1'][(restricted_df_dict['no_purity1'].cancer_loc==loc)].dropna(subset=cols_restricted)
     sub_df.rename(columns=dict(zip(cols_plot, alt_cols_plot)), inplace=True)
     sns.set(font_scale=3)
-    cg = sns.clustermap(sub_df[alt_cols_plot].corr(), figsize=(20, 20), cmap="vlag", vmin=-1, vmax=1, row_colors=network_colors, col_colors=network_colors, cbar_kws={"ticks":[-1, 0, 1]})
+
+    df = sub_df[alt_cols_plot].copy()
+    pval = pval_dict[loc]
+    pval_nonsig = pval>0.05
+    annot = df.corr().as_matrix()
+    
+    annot = np.round(annot, 2).astype(str)
+    annot[pval_nonsig] = ''
+
+    cg = sns.clustermap(df.corr(), figsize=(20, 20), cmap="vlag", vmin=-1, vmax=1, row_colors=network_colors, col_colors=network_colors, cbar_kws={"ticks":[-1, 0, 1]}, annot=annot[order_dict[loc],:][:,order_dict[loc]], fmt='s', annot_kws={'fontsize':20})
+    #cg = sns.clustermap(df.corr(), figsize=(20, 20), cmap="vlag", vmin=-1, vmax=1, row_colors=network_colors, col_colors=network_colors, cbar_kws={"ticks":[-1, 0, 1]}, annot=True, annot_kws={'fontsize':15})
     order_labels = [t.get_text() for t in cg.ax_heatmap.get_xticklabels()]
     aa = cg.ax_row_colors
     bb = cg.ax_col_colors
@@ -458,7 +515,7 @@ for ii, loc in enumerate(cancer_locs):
                          Patch(facecolor='white', edgecolor='black', label='public', hatch='/', lw=3)]
         other_ = cg.ax_heatmap.add_artist(Legend(cg.ax_heatmap, handles=other_handles, bbox_to_anchor=(1.5, 0.4), fontsize=30, title='input mutations', loc=2, labels=['protected', 'public']))
         first_legend = cg.ax_heatmap.legend(handles=legend_items, bbox_to_anchor=(1.5, 1), loc=2, fontsize=30, title='ITH methods')
-    plt.savefig('{}/{}_clustermap_corr_all_variables.pdf'.format(output_path, loc), bbox_inches='tight')
+    plt.savefig('{}/new{}_clustermap_corr_all_variables.pdf'.format(output_path, loc), bbox_inches='tight')
 
     plt.close()
 
