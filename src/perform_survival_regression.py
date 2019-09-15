@@ -30,7 +30,7 @@ colors_protected = {'baseline': '#A1E4C5', 'SciClone': '#AE88FF',
                     'PyClone': '#84B8FF', 'expands': '#FFC89B',
                     'Combination': '#FFFFFF'}
 
-tmp_df = pd.read_csv('tmp/20180801_ith_method_metrics_final_runtime_immunity.csv', sep='\t')
+tmp_df = pd.read_csv('tmp/20190903_ith_method_metrics_final_runtime_immunity.csv', sep='\t')
 
 tmp_df = tmp_df[tmp_df.survival_days>0]
 base_cols = ['nb_clones', 'clonal_prop', 'smallest_vaf', 'shannon_index', 'most_populated_clone_vaf']
@@ -63,29 +63,33 @@ for c in base_cols:
     for real_c in concerned_cols:
         tmp_df = tmp_df.assign(**{'norm_{}'.format(real_c): lambda x: function_dict[c](x[real_c])})
         tmp_df = tmp_df.assign(**{'norm_{}_squared'.format(real_c): lambda x: x['norm_{}'.format(real_c)]**2})
-tmp_df = tmp_df.assign(**{'math_public_squared': lambda x: x['math_public']**2})
-tmp_df = tmp_df.assign(**{'math_protected_squared': lambda x: x['math_protected']**2})
+tmp_df = tmp_df.assign(**{'math_public_squared': lambda x: x['math_cn_public']**2})
+tmp_df = tmp_df.assign(**{'math_protected_squared': lambda x: x['math_cn_protected']**2})
+tmp_df = tmp_df.assign(**{'math_protected_abs_squared': lambda x: x['math_cn_protected_abs']**2})
 
 cols_restricted = [c for c in tmp_df.columns if ('norm' in c)]
 
 extra_cols = ['age_at_diagnosis',
               'purity',
+              'purity_absolute',
               'ploidy',
-              'CPE',
-              'perc_non_diploid',
+              'ploidy_absolute',
+              'perc_non_diploid_ascat',
+              'perc_non_diploid_absolute',
               'mutation_count_protected',
               'mutation_count_public',
               'math_protected',
               'math_cn_protected',
               'math_public',
-              'math_cn_public']
+              'math_cn_public',
+              'math_cn_protected_abs']
 
 nb_clones_restricted = [c for c in cols_restricted if 'nb_clones' in c]
 cols_restricted += extra_cols
 nb_clones_restricted += extra_cols
 
 tmp_df_c = tmp_df.dropna(subset=nb_clones_col).copy()
-output_path = 'results/20180801_results_rerun_newsksurv'
+output_path = 'results/20190901_results_rerun_newsksurv'
 safe_mkdir(output_path)
 restricted_df_dict = dict()
 restricted_df_dict['no_purity1'] = tmp_df_c
@@ -145,13 +149,13 @@ if __name__ == '__main__':
                     show_progress=False)
             summary_list.append(cph.summary)
 
-        big_summary = pd.concat(summary_list, axis=0)
+        big_summary = pd.concat(summary_list, axis=0, sort=True)
 
         big_summary = big_summary.assign(corrected_pvalue=multipletests(big_summary['p'].values.ravel(), method='fdr_bh')[1])
 
         final_selected_features = data_x_numeric[big_summary[big_summary.corrected_pvalue <0.05].index]
         big_summary[['exp(coef)', 'p', 'corrected_pvalue']].to_csv('tmp/{}_clinical_variable_significance.csv'.format(cancer_loc), sep='\t', float_format='%g')
-        clinical_data_dict[cancer_loc] = pd.concat([clinical_data_bkp[['PATIENT_ID']], final_selected_features], axis=1)
+        clinical_data_dict[cancer_loc] = pd.concat([clinical_data_bkp[['PATIENT_ID']], final_selected_features], axis=1, sort=True)
 
 
 
@@ -203,27 +207,27 @@ if __name__ == '__main__':
         variable_base_name = [r.split('_{}_'.format(folder))[1] if ith_method in r else r for r in X_train.columns]
         coef_dict = dict(zip(['{}_coef'.format(c) for c in variable_base_name], lin_svm.coef_))
         t = pd.DataFrame({'cancer_loc':loc, 'ith_method': ith_method, 'folder': folder, 'additional_cols': additional_cols[0], 'regression_method': 'linear_survival_svm', 'train_score': ci_train, 'pval_train': pval_train, 'test_score': ci_test, 'pval_test': pval_test, **coef_dict}, index=[0])
-        regression_df = pd.concat((regression_df, t))
+        regression_df = pd.concat((regression_df, t), sort=True)
         t = pd.DataFrame({'ith_method': ith_method, 'folder': folder, 'additional_cols': additional_cols[0], 'train_score': ci_train, 'pval_train': pval_train, 'test_score': ci_test, 'pval_test': pval_test, **{obs_idx: T_pred_test[obs_idx] for obs_idx in range(len(T_pred_test))}}, index=[0])
-        test_res_df = pd.concat((test_res_df, t))
+        test_res_df = pd.concat((test_res_df, t), sort=True)
         if extra_pred_test is not None:
             for i, c in enumerate(extra_pred_test):
                 ci_test, pval_test = my_ci_pvalue(XX_test['survival_days'], T_pred_test+extra_pred_test[i], XX_test['binary_vital_status'], 0)
                 ci_train, pval_train = my_ci_pvalue(XX_train['survival_days'], T_pred_train+extra_pred_train[i], XX_train['binary_vital_status'], 0)
                 t = pd.DataFrame({'cancer_loc':loc, 'ith_method': ith_method, 'folder': folder, 'additional_cols': additional_cols[i+1], 'regression_method': 'linear_survival_svm', 'train_score': ci_train, 'pval_train': pval_train, 'test_score': ci_test, 'pval_test': pval_test}, index=[0])
-                regression_df = pd.concat((regression_df, t))
+                regression_df = pd.concat((regression_df, t), sort=True)
                 t = pd.DataFrame({'ith_method': ith_method, 'folder': folder, 'additional_cols': additional_cols[i+1], 'train_score': ci_train, 'pval_train': pval_train, 'test_score': ci_test, 'pval_test': pval_test, **{obs_idx: T_pred_test+extra_pred_test[i][obs_idx] for obs_idx in range(len(T_pred_test+extra_pred_test[i]))}}, index=[0])
-                test_res_df = pd.concat((test_res_df, t))
+                test_res_df = pd.concat((test_res_df, t), sort=True)
         return regression_df, test_res_df, T_pred_test, T_pred_train
 
 
 
 
-    NGS_no_ith_cols = ['ploidy', 'purity', 'perc_non_diploid',
+    NGS_no_ith_cols = ['ploidy', 'purity', 'perc_non_diploid_ascat',
                        'mutation_count_protected', 'mutation_count_public']
     pval_repeats = 1
     for k in restricted_df_dict.keys():
-        tmp_res_path = 'tmp/20180801_{}_test_results'.format(k)
+        tmp_res_path = 'tmp/20190901_{}_test_results'.format(k)
         safe_mkdir(tmp_res_path)
         nb_repeats = 1
         np.random.seed(567)
@@ -244,16 +248,20 @@ if __name__ == '__main__':
                     nb_cv+=1
                     y_train, y_test = tcga_y[train_index], tcga_y[test_index]
                     test_res_df = pd.DataFrame(columns=['ith_method', 'folder', 'additional_cols', 'train_score', 'test_score', 'pval_train', 'pval_test'] + [c for c in range(len(test_index))])
-                    test_res_df = pd.concat((test_res_df, pd.DataFrame({'ith_method': 'groundTruth', 'folder': '', 'additional_cols': 'survival_days', **{obs_idx: y_test['survival_days'][obs_idx] for obs_idx in range(len(y_test))}}, index=[0])))
-                    test_res_df = pd.concat((test_res_df, pd.DataFrame({'ith_method': 'groundTruth', 'folder': '', 'additional_cols': 'vital_status', **{obs_idx: y_test['vital_status'][obs_idx] for obs_idx in range(len(y_test))}}, index=[0])))
+                    test_res_df = pd.concat((test_res_df, pd.DataFrame({'ith_method': 'groundTruth', 'folder': '', 'additional_cols': 'survival_days', **{obs_idx: y_test['survival_days'][obs_idx] for obs_idx in range(len(y_test))}}, index=[0])), sort=True)
+                    test_res_df = pd.concat((test_res_df, pd.DataFrame({'ith_method': 'groundTruth', 'folder': '', 'additional_cols': 'vital_status', **{obs_idx: y_test['vital_status'][obs_idx] for obs_idx in range(len(y_test))}}, index=[0])), sort=True)
                     total_col_list = list()
                     total_col_list_squared = list()
                     for ith_method, folder in [('pyclone', 'protected_hg38_vcf'), ('pyclone', 'public_hg38_vcf'),
+                                               ('pyclone', 'protected_hg38_vcf_absolute'),
                                                ('sciclone', 'protected_hg38_vcf'), ('sciclone', 'public_hg38_vcf'),
-                                               ('baseline', 'protected_hg38_vcf'), ('baseline', 'public_hg38_vcf'),
+                                               ('sciclone', 'protected_hg38_vcf_absolute'),
                                                ('PhyloWGS', 'protected_hg38_vcf'), ('PhyloWGS', 'public_hg38_vcf'),
+                                               ('PhyloWGS', 'protected_hg38_vcf_absolute'),
                                                ('CSR', 'protected_hg38_vcf'), ('CSR', 'public_hg38_vcf'),
-                                               ('expands', 'protected_hg38_vcf'), ('expands', 'public_hg38_vcf')]:
+                                               ('CSR', 'protected_hg38_vcf_absolute'),
+                                               ('expands', 'protected_hg38_vcf'), ('expands', 'public_hg38_vcf'),
+                                               ('expands', 'protected_hg38_vcf_absolute'),]:
                         col_list = ['survival_days', 'binary_vital_status'] + ['norm_{}_{}_{}'.format(ith_method, folder, c) for c in base_cols]
                         squared_cols = ['norm_{}_{}_{}_squared'.format(ith_method, folder, c) for c in base_cols]
                         if sum(pd.isnull(sub_restricted_tmp_df[col_list[2]])):
@@ -267,20 +275,27 @@ if __name__ == '__main__':
                         regression_df, test_res_df, _, _ = apply_survival_regression(col_list+clinical_cols, sub_restricted_tmp_df, regression_df, folder, ith_method, ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                         regression_df, test_res_df, _, _ = apply_survival_regression(col_list+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, folder, ith_method, ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                         regression_df, test_res_df, _, _ = apply_survival_regression(col_list+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, folder, ith_method, ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_public'], sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_public', 'math_public_squared'], sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_public']+clinical_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_public']+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_public']+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_protected'], sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_protected', 'math_protected_squared'], sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_protected']+clinical_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_protected']+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_protected']+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
-                    public_cols = ['survival_days', 'binary_vital_status', 'math_public'] + [c for c in total_col_list if 'public' in c]
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_public'], sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_public', 'math_public_squared'], sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_public']+clinical_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_public']+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_public']+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'math_score', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected'], sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected', 'math_protected_squared'], sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected']+clinical_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected']+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected']+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'math_score', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected_abs'], sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'math_score', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected_abs', 'math_protected_abs_squared'], sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'math_score', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected_abs']+clinical_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'math_score', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected_abs']+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'math_score', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status', 'math_cn_protected_abs']+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'math_score', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    public_cols = ['survival_days', 'binary_vital_status', 'math_cn_public'] + [c for c in total_col_list if 'public' in c]
                     public_cols_squared = public_cols + ['math_public_squared'] + [c for c in total_col_list_squared if 'public' in c]
-                    protected_cols = ['survival_days', 'binary_vital_status', 'math_protected'] + [c for c in total_col_list if 'protected' in c]
-                    protected_cols_squared = protected_cols + ['math_protected_squared'] + [c for c in total_col_list_squared if 'protected' in c]
+                    protected_cols = ['survival_days', 'binary_vital_status', 'math_cn_protected'] + [c for c in total_col_list if (('protected' in c) and ('absolute' not in c))]
+                    protected_cols_squared = protected_cols + ['math_protected_squared'] + [c for c in total_col_list_squared if (('protected' in c) and ('absolute' not in c))]
+                    protected_abs_cols = ['survival_days', 'binary_vital_status', 'math_cn_protected_abs'] + [c for c in total_col_list if (('protected' in c) and ('absolute' in c))]
+                    protected_abs_cols_squared = protected_abs_cols + ['math_protected_abs_squared'] + [c for c in total_col_list_squared if (('protected' in c) and ('absolute' in c))]
                     regression_df, test_res_df, _, _ = apply_survival_regression(public_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'combination', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(public_cols_squared, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'combination', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(public_cols+clinical_cols, sub_restricted_tmp_df, regression_df, 'public_hg38_vcf', 'combination', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
@@ -291,13 +306,19 @@ if __name__ == '__main__':
                     regression_df, test_res_df, _, _ = apply_survival_regression(protected_cols+clinical_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'combination', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(protected_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'combination', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(protected_cols+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf', 'combination', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+
+                    regression_df, test_res_df, _, _ = apply_survival_regression(protected_abs_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'combination', ['clonality'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(protected_abs_cols_squared, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'combination', ['clonality_squared'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(protected_abs_cols+clinical_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'combination', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(protected_abs_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'combination', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
+                    regression_df, test_res_df, _, _ = apply_survival_regression(protected_abs_cols+clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'protected_hg38_vcf_absolute', 'combination', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status'] + clinical_cols, sub_restricted_tmp_df, regression_df, 'none', 'none', ['clonality+clinical'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status'] +NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'none', 'none', ['clonality+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     regression_df, test_res_df, _, _ = apply_survival_regression(['survival_days', 'binary_vital_status'] + clinical_cols+NGS_no_ith_cols, sub_restricted_tmp_df, regression_df, 'none', 'none', ['clonality+clinical+NGS'], loc, tcga_y, test_res_df, repeats=pval_repeats)
                     test_res_df.to_csv('{}/{}_fold{}_test_res.csv'.format(tmp_res_path, loc, nb_cv), index=False, sep='\t')
 
         regression_df = regression_df.assign(method_folder=regression_df[['ith_method', 'folder']].astype(str).sum(axis=1))
-        regression_df.to_csv('tmp/20180801_regression_df_{}_scale_mean_model_squared.csv'.format(k), sep='\t', index=False)
+        regression_df.to_csv('tmp/20190901_regression_df_{}_scale_mean_model_squared.csv'.format(k), sep='\t', index=False)
 
 
 

@@ -245,6 +245,7 @@ if __name__ == '__main__':
                 # smg to build pilot_results
             tmp_df = pd.merge(tmp_df, pilot_results, left_on='PATIENT_ID', right_on='PATIENT_ID', how='left')
     tmp_df.to_csv('20190901_tmp_df_get_features.csv', sep='\t', index=False)
+    tmp_df = pd.read_csv('20190901_tmp_df_get_features.csv', sep='\t')
 
 
     ###################
@@ -284,8 +285,8 @@ if __name__ == '__main__':
                 t = np.nan
         return t
 
-    for ith_method in ['pyclone', 'PhyloWGS', 'sciclone', 'baseline', 'expands']:
-        for folder in ['protected_hg38_vcf', 'public_hg38_vcf']:
+    for ith_method in ['pyclone', 'PhyloWGS', 'sciclone', 'expands']:
+        for folder in ['protected_hg38_vcf', 'public_hg38_vcf', 'protected_hg38_vcf_absolute']:
             out_list = list()
             for patient in tmp_df.PATIENT_ID.tolist():
                 out = get_timestamp(ith_method, folder, patient)
@@ -295,22 +296,35 @@ if __name__ == '__main__':
     match_numbers_1 = pd.read_csv('official_patient_list.csv', sep=',', header=None, index_col=0, names=['patient_id'])
     match_numbers_1 = match_numbers_1.assign(line_nb=match_numbers_1.index)
     tmp_df_m = pd.merge(tmp_df, match_numbers_1, left_on='PATIENT_ID', right_on='patient_id', how='left')
+    tmp_df_m.to_csv('20190902_tmp_df_get_features_timestamp.csv', sep='\t', index=False)
+    tmp_df_m = pd.read_csv('20190902_tmp_df_get_features_timestamp.csv', sep='\t')
 
     # get big table of torque logs
-    all_files = os.listdir(TORQUE_LOG_PATH)
-    all_files_e = [f for f in all_files if '.E' in f]
+    all_files = os.listdir(TORQUE_LOG_PATH_old)
+    all_files_new = os.listdir(TORQUE_LOG_PATH_new)
+    all_files_e_old = [f for f in all_files if '.E' in f]
+    all_files_e_new = [f for f in all_files_new if '.E' in f]
     tables_e_list = list()
-    for n in all_files_e:
-        e = pd.read_csv('{}/{}'.format(TORQUE_LOG_PATH, n), sep=' ', header=None)
+    for n in all_files_e_old:
+        if n in all_files_e_old:
+            e = pd.read_csv('{}/{}'.format(TORQUE_LOG_PATH_old, n), sep=' ', header=None)
+        else:
+            e = pd.read_csv('{}/{}'.format(TORQUE_LOG_PATH_new, n), sep=' ', header=None)
 
-        e = e.assign(start=e[8].str.replace('start=', '').astype(int))
+        e = e.assign(start=e[8].str.replace('start=', '').str.replace('start_count=', '').astype(int))
         if e.shape[1]-1==24:
             e = e.assign(end=e[18].str.replace('end=', '').astype(int))
             e = e.assign(exit_status=e[19].str.replace('Exit_status=', '').astype(int))
         elif e.shape[1]-1==23:
             e = e.assign(end=e[17].str.replace('end=', '').astype(int))
             e = e.assign(exit_status=e[18].str.replace('Exit_status=', '').astype(int))
-        e = e.assign(job_id=e[1].str.split(';').str[2].str.replace('.torque.curie.fr', ''))
+        elif e.shape[1]-1==27:
+            e = e.assign(end=e[20].str.replace('end=', '').astype(int))
+            e = e.assign(exit_status=e[21].str.replace('Exit_status=', '').astype(int))
+        else:
+            print('pb', n)
+            break
+        e = e.assign(job_id=e[1].str.split(';').str[2].str.replace('.torque.curie.fr', '').str.replace('.torque6.curie.fr', ''))
         e = e.assign(jobname=e[3].str.replace('jobname=', ''))
         e = e.assign(job_nb=e.job_id.str.split('[').str[0])
         e = e[~pd.isnull(e.job_id.str.split('[').str[1])]
@@ -322,19 +336,22 @@ if __name__ == '__main__':
     # merge with the timestamps table
     tolerance = 2  # to allow some latency
     tmp_merge = pd.merge(tmp_df_m, big_e, left_on='line_nb', right_on='batch_nb', how='left')
-    for ith_method in ['pyclone', 'sciclone', 'baseline', 'expands', 'PhyloWGS']:
+    for ith_method in ['pyclone', 'sciclone', 'expands', 'PhyloWGS']:
         # phylowgs is a special case
         for folder in ['protected_hg38_vcf', 'public_hg38_vcf']:
             tmp_ = tmp_merge[(tmp_merge['{}_{}_timestamp'.format(ith_method, folder)] >= tmp_merge.start)&(tmp_merge['{}_{}_timestamp'.format(ith_method, folder)]<=tmp_merge.end + tolerance)]
             maj_job_nb = tmp_.job_nb.value_counts().index[0]
+            print(ith_method, folder, maj_job_nb, tmp_.job_nb.value_counts())
             tmp_ = tmp_merge[(tmp_merge['{}_{}_timestamp'.format(ith_method, folder)] >= tmp_merge.start) &
                              (tmp_merge['{}_{}_timestamp'.format(ith_method, folder)] <= tmp_merge.end + tolerance) &
                              (tmp_merge['job_nb'] == maj_job_nb)]
             tmp_ = tmp_.assign(**{'{}_{}_runtime'.format(ith_method, folder): tmp_.runtime})
             tmp_df_m = pd.merge(tmp_df_m, tmp_[['PATIENT_ID', '{}_{}_runtime'.format(ith_method, folder)]], left_on='PATIENT_ID', right_on='PATIENT_ID', how='left')
 
+
+
     # manually remove the cases that were allowed to run for too long by the cluster
-    for ith_method in ['pyclone', 'sciclone', 'baseline', 'expands', 'PhyloWGS']:
+    for ith_method in ['pyclone', 'sciclone', 'expands', 'PhyloWGS']:
         # phylowgs is a special case
         for folder in ['protected_hg38_vcf', 'public_hg38_vcf']:
             tmp_df_m.loc[tmp_df_m['{}_{}_runtime'.format(ith_method, folder)] > 15*3600, '{}_{}_nb_clones'.format(ith_method, folder)] = np.nan
@@ -365,6 +382,6 @@ if __name__ == '__main__':
         sig_list.append(signatures_tcga_agg)
     all_sig = pd.concat(sig_list, axis=0)
     tmp_df_sig = pd.merge(tmp_df_m, all_sig, left_on='sample_id', right_index=True, how='left').drop_duplicates(subset=['barcodeTumour'])
-    tmp_df_sig.to_csv('tmp/20180801_ith_method_metrics_final_runtime_immunity.csv', sep='\t', index=False)
+    tmp_df_sig.to_csv('tmp/20190903_ith_method_metrics_final_runtime_immunity.csv', sep='\t', index=False)
 
 
