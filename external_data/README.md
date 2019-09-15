@@ -15,3 +15,12 @@ was downloaded from Ensembl biomart on March 26th 2018 to match Ensembl Gene Ids
 
 **TCGA_mastercalls.abs_tables_JSedit.fixed.txt and TCGA_mastercalls.abs_segtabs.fixed.txt**
 are results from ABSOLUTE for purity and ploidy, and allele-specific copy number for the TCGA, downloaded from [the TCGA pancancer data portal](https://gdc.cancer.gov/about-data/publications/pancanatlas) on August 18th 2019.
+
+**target bed truseq (CRC C05)**
+https://www.biostars.org/p/144554/
+
+** target bed ALL **
+http://emea.support.illumina.com/content/dam/illumina-support/documents/documentation/chemistry_documentation/samplepreps_nextera/nexterarapidcapture/nexterarapidcapture_expandedexome_uniqueintervals.bed
+
+** target bed CRC CO8 **
+SeqCap_EZ_Exome_v3_hg19_capture_targets.bed downloaded from Roche website (although version 2 was used in the original analysis)
