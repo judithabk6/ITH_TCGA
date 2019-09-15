@@ -26,3 +26,5 @@ this project uses many packages. Here is a list of the most important ones. Requ
 - [scikit-survival](https://github.com/sebp/scikit-survival)
 
 All scripts should be run from the root of the folder. Folder tmp contains the final file with all results from ITH methods, allowing to reproduce the survival analysis.
+
+All calls for SNV and CNA on the single cell dataset are in the `tmp_results_single_cell` folder. All target bed for exome capture are in the `external_data` folder.
