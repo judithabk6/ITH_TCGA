@@ -41,8 +41,11 @@ extract$short_chrm = as.numeric(extract$short_chrm)
 colnames(extract) <- c('chr', 'startpos', 'AF_Tumor', 'PN_B')
 ssm_input = data.matrix(extract)
 
+if (grepl("absolute", folder)) {
+cnv_file = read.table(paste('results', patient, 'pyclone', 'absolute_hg38_cnv_table.csv', sep='/'), sep='\t', header=TRUE)
+} else {
 cnv_file = read.table(paste('results', patient, 'pyclone', 'ascat_hg38_cnv_table.csv', sep='/'), sep='\t', header=TRUE)
-#cnv_file$abs_mean = as.numeric(2^(cnv_file$Segment_Mean)*2)
+}
 cnv_file$total_cn = cnv_file$major + cnv_file$minor
 extract_cnv = cnv_file[(cnv_file$chromosome!='X')&(cnv_file$chromosome!='Y'),c('chromosome', 'start', 'stop', 'total_cn')]
 extract_cnv$chromosome = as.numeric(extract_cnv$chromosome)

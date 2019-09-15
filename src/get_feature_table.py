@@ -18,7 +18,8 @@ import numpy as np
 pd.set_option('display.max_columns', 200)
 
 CANCER_LOCS = ['BRCA', 'HNSC', 'BLCA']
-TORQUE_LOG_PATH = sys.argv[1]
+TORQUE_LOG_PATH_old = sys.argv[1]
+TORQUE_LOG_PATH_new = sys.argv[2]
 
 if __name__ == '__main__':
     ###################
@@ -44,15 +45,17 @@ if __name__ == '__main__':
         clinical_data = clinical_data.assign(cancer_loc=cancer_loc)
         clinical_data_dict[cancer_loc] = clinical_data
 
-    useful_final_qc_merge_purity = pd.read_csv('tmp/useful_final_qc_merge_cnv_purity.csv', sep='\t')
+    useful_final_qc_merge_purity = pd.read_csv('tmp/useful_final_qc_merge_cnv_purity_absolute.csv', sep='\t')
     useful_final_public_merge_purity = pd.read_csv('tmp/useful_final_public_merge_cnv_purity.csv', sep='\t')
     common_cols = ['PATIENT_ID', 'binary_vital_status', 'survival_days', 'age_at_diagnosis', 'cancer_loc']
     clinical_data_merge = pd.concat([clinical_data_dict[loc][common_cols] for loc in CANCER_LOCS], axis=0)
 
     # load absolute purity
-    all_absolute_purity = pd.read_excel('external_data/ncomms9971-s2.xlsx', skiprows=[0, 1, 2])
-    all_absolute_purity = all_absolute_purity.assign(patient_id=all_absolute_purity['Sample ID'].str[:12])
-    # patient_purity = all_purity[all_purity['Sample ID'].str.contains(patient)].CPE.values[0]
+    abs_purity = pd.read_csv(
+        'data/pancancer/TCGA_mastercalls.abs_tables_JSedit.fixed.txt',
+        sep='\t')
+    abs_purity = abs_purity.assign(patient_id=abs_purity.array.str[:12])
+    abs_purity = abs_purity.assign(sample_id=abs_purity['sample'].str[:16])
 
     # load ascat purity
     all_ascat_purity = pd.read_csv('data/pancancer/liftover_ASCAT_TCGA/filtered.combined.acf.ploidy.txt', sep='\t')
@@ -60,49 +63,68 @@ if __name__ == '__main__':
     all_ascat_purity_samples = [s[:16] for s in all_ascat_purity_relevant.barcodeTumour.unique()]
     all_ascat_purity_patients = [s[:12] for s in all_ascat_purity_samples]
 
-    # load CNV data
+    # load ascat CNV data
     all_cnv_hg38 = pd.read_csv('data/pancancer/liftover_ASCAT_TCGA/cnasHg38.tsv', sep='\t')
     all_cnv_hg38 = all_cnv_hg38[all_cnv_hg38.participant.isin(all_ascat_purity['name'])]
     all_cnv_hg38 = all_cnv_hg38.assign(patient_id=all_cnv_hg38.participant.str[:12])
     all_cnv_hg38 = all_cnv_hg38.assign(weight=all_cnv_hg38.stop-all_cnv_hg38.start)
 
+    # load absolute CNV data
+    abs_data = pd.read_csv('data/pancancer/ABSOLUTE_cnasHg38.tsv', sep='\t')
+    abs_data = abs_data.assign(patient_id=abs_data.Sample.str[:12])
+    abs_data = abs_data.assign(key=abs_data.patient_id+'_'+abs_data.Chromosome.astype(str))
+    abs_data = abs_data.assign(weight=abs_data.End-abs_data.Start)
+
+    useful_final_merge_cnv_purity_abs = pd.merge(useful_final_qc_merge_purity, abs_purity[['sample_id', 'purity']], left_on='Sample ID', right_on='sample_id', how='left', suffixes=['', '_absolute'])
+    useful_final_merge_cnv_purity_abs.purity_absolute = useful_final_merge_cnv_purity_abs.purity_absolute.fillna(1)
+    useful_final_merge_cnv_purity_abs = useful_final_merge_cnv_purity_abs.assign(min_nonzero_cn_abs=useful_final_merge_cnv_purity_abs.apply(lambda x: x['Modal_HSCN_1'] if (x['Modal_HSCN_1']>0) and (x['Modal_HSCN_2']<=2) else x['Modal_HSCN_2'] if x['Modal_HSCN_2']>0 else x['Modal_Total_CN'], axis=1))
+    useful_final_merge_cnv_purity_abs = useful_final_merge_cnv_purity_abs.assign(total_cn_abs=useful_final_merge_cnv_purity_abs.Modal_Total_CN)
+    useful_final_merge_cnv_purity_abs = useful_final_merge_cnv_purity_abs[useful_final_merge_cnv_purity_abs.total_cn_abs > 0]
+    useful_final_merge_cnv_purity_abs = useful_final_merge_cnv_purity_abs.assign(vaf_cn_abs=useful_final_merge_cnv_purity_abs.vaf * useful_final_merge_cnv_purity_abs['total_cn_abs'] / useful_final_merge_cnv_purity_abs['min_nonzero_cn_abs'])
+    useful_final_merge_cnv_purity_abs = useful_final_merge_cnv_purity_abs.assign(vaf_purity_abs=useful_final_merge_cnv_purity_abs.apply(lambda x: x['vaf']/x.purity * ((1 - x.purity_absolute) * 2 + x.purity_absolute * x['total_cn_abs']) / x['min_nonzero_cn_abs'], axis=1))
 
     def key_barcode(b):
         return int(b[13:15])
 
     non_diploid_fraction = all_cnv_hg38[(all_cnv_hg38.major!=1) | (all_cnv_hg38.minor!=1)].groupby('patient_id').weight.sum()/ all_cnv_hg38.groupby('patient_id').weight.sum()
+    non_diploid_fraction_absolute = abs_data[(abs_data.Modal_HSCN_2!=1) | (abs_data.Modal_HSCN_1!=1)].groupby('patient_id').weight.sum()/ abs_data.groupby('patient_id').weight.sum()
     clinical_data_merge_ascat = pd.merge(clinical_data_merge, all_ascat_purity_relevant, left_on='PATIENT_ID', right_on='tissue', how='left')
     clinical_data_merge_ascat = clinical_data_merge_ascat.assign(sample_id=clinical_data_merge_ascat.barcodeTumour.str[:16])
-    clinical_data_merge_ascat_abs = pd.merge(clinical_data_merge_ascat, all_absolute_purity, left_on='sample_id', right_on='Sample ID', how='left')
-    clinical_data_merge_ascat_abs_cnv = pd.merge(clinical_data_merge_ascat_abs, non_diploid_fraction.to_frame(), left_on='PATIENT_ID', right_index=True, how='left')
 
-    clinical_data_merge_ascat_abs_cnv_protect = pd.merge(clinical_data_merge_ascat_abs_cnv, useful_final_qc_merge_purity.groupby('patient_id')['mutation_id.1'].count().to_frame(), left_on='patient_id', right_index=True, how='inner')
-    clinical_data_merge_ascat_abs_cnv_protect_pub = pd.merge(clinical_data_merge_ascat_abs_cnv_protect, useful_final_public_merge_purity.groupby('patient_id')['mutation_id.1'].count().to_frame(), left_on='patient_id', right_index=True, how='left')
+    clinical_data_merge_ascat_abs = pd.merge(clinical_data_merge_ascat, abs_purity[['sample_id', 'purity', 'ploidy', 'Subclonal genome fraction']], left_on='sample_id', right_on='sample_id', how='left', suffixes=['', '_absolute'])
+    clinical_data_merge_ascat_abs_cnv = pd.merge(clinical_data_merge_ascat_abs, non_diploid_fraction.to_frame(), left_on='PATIENT_ID', right_index=True, how='left')
+    clinical_data_merge_ascat_abs_cnv_abs = pd.merge(clinical_data_merge_ascat_abs_cnv, non_diploid_fraction_absolute.to_frame(), left_on='PATIENT_ID', right_index=True, how='left', suffixes=['', '_absolute'])
+
+    clinical_data_merge_ascat_abs_cnv_protect = pd.merge(clinical_data_merge_ascat_abs_cnv_abs, useful_final_qc_merge_purity.groupby('patient_id_x')['mutation_id.1'].count().to_frame(), left_on='PATIENT_ID', right_index=True, how='inner')
+    clinical_data_merge_ascat_abs_cnv_protect_pub = pd.merge(clinical_data_merge_ascat_abs_cnv_protect, useful_final_public_merge_purity.groupby('patient_id')['mutation_id.1'].count().to_frame(), left_on='PATIENT_ID', right_index=True, how='left')
 
 
     clinical_data_merge_ascat_abs_cnv_protect_pub.rename(columns={'mutation_id.1_x': 'mutation_count_protected',
-                                                                  'mutation_id.1_y': 'mutation_count_public', 'weight': 'perc_non_diploid'}, inplace=True)
+                                                                  'mutation_id.1_y': 'mutation_count_public', 'weight': 'perc_non_diploid_ascat',
+                                                                  'weight_absolute': 'perc_non_diploid_absolute'}, inplace=True)
 
     ######################
     ## add ITH features ##
     ######################
     # compute MATH score
-    hh = useful_final_qc_merge_purity.groupby('patient_id')
+    hh = useful_final_merge_cnv_purity_abs.groupby('patient_id_x')
     math_protected = (100 * hh.vaf.mad() / hh.vaf.median()).to_frame()
     math_protected_cn = (100 * hh.vaf_cn.mad() / hh.vaf_cn.median()).to_frame()
+    math_protected_cn_abs = (100 * hh.vaf_cn_abs.mad() / hh.vaf_cn_abs.median()).to_frame()
 
     gg = useful_final_public_merge_purity.groupby('patient_id')
     math_public = (100 * gg.vaf.mad() / gg.vaf.median()).to_frame()
     math_public_cn = (100 * gg.vaf_cn.mad() / gg.vaf_cn.median()).to_frame()
 
-    for df in (math_protected, math_protected_cn, math_public, math_public_cn):
+    for df in (math_protected, math_protected_cn, math_protected_cn_abs, math_public, math_public_cn):
         clinical_data_merge_ascat_abs_cnv_protect_pub = pd.merge(clinical_data_merge_ascat_abs_cnv_protect_pub, df, left_on='PATIENT_ID', right_index=True, how='left')
 
     clinical_data_merge_ascat_abs_cnv_protect_pub.rename(columns={'vaf_x': 'math_protected',
                                                                   'vaf_y': 'math_public',
                                                                   'vaf_cn_x': 'math_cn_protected',
-                                                                  'vaf_cn_y': 'math_cn_public'}, inplace=True)
-
+                                                                  'vaf_cn_y': 'math_cn_public',
+                                                                  'vaf_cn_abs': 'math_cn_protected_abs'}, inplace=True)
+    useful_final_qc_merge_purity = useful_final_qc_merge_purity.assign(patient_id=useful_final_qc_merge_purity.patient_id_y)
     # get result for other methods
     def get_ith_method_measures(ith_method, folder, patient):
         sub_protected = useful_final_qc_merge_purity[useful_final_qc_merge_purity.patient_id == patient]
@@ -213,8 +235,8 @@ if __name__ == '__main__':
 
     tmp_df = clinical_data_merge_ascat_abs_cnv_protect_pub.copy()
     base_cols = ['nb_clones', 'clonal_prop', 'smallest_vaf', 'shannon_index', 'most_populated_clone_vaf']
-    for ith_method in ['pyclone', 'PhyloWGS', 'sciclone', 'baseline', 'expands', 'CSR']:
-        for folder in ['protected_hg38_vcf', 'public_hg38_vcf']:
+    for ith_method in ['pyclone', 'PhyloWGS', 'sciclone', 'expands', 'CSR']:
+        for folder in ['protected_hg38_vcf', 'public_hg38_vcf', 'protected_hg38_vcf_absolute']:
             col_list = ['PATIENT_ID'] + ['{}_{}_{}'.format(ith_method, folder, c) for c in base_cols]
             pilot_results = pd.DataFrame(columns=col_list)
             for patient in clinical_data_merge_ascat_abs_cnv_protect_pub.PATIENT_ID.tolist():
@@ -222,7 +244,7 @@ if __name__ == '__main__':
                 pilot_results = pilot_results.append(dict(zip(col_list, out)), ignore_index=True)
                 # smg to build pilot_results
             tmp_df = pd.merge(tmp_df, pilot_results, left_on='PATIENT_ID', right_on='PATIENT_ID', how='left')
-
+    tmp_df.to_csv('20190901_tmp_df_get_features.csv', sep='\t', index=False)
 
 
     ###################

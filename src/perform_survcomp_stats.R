@@ -5,7 +5,7 @@ library(survcomp)
 for (eval_setting in c('no_purity1')) {
     for (loc in c('BRCA', 'BLCA', 'HNSC')) {
         for (fold in seq(1,5)) {
-            filename = paste('tmp/20180801_', eval_setting, '_test_results/', loc, '_fold', fold, '_test_res.csv', sep='')
+            filename = paste('tmp/20190901_', eval_setting, '_test_results/', loc, '_fold', fold, '_test_res.csv', sep='')
             results = read.table(filename, header=TRUE, sep='\t')
             ground_truth_time = results[1,8:dim(results)[2]]
             ground_truth_event = results[2,8:dim(results)[2]]
@@ -28,7 +28,7 @@ for (eval_setting in c('no_purity1')) {
             u = t(u)
             colnames(u) = c('test_score_cindex_r', 'pval_test_cindex_r')
             new_df = cbind(true_results, u)[,c(seq(1,7), seq(dim(results)[2]+1, dim(results)[2]+2))]
-            save_filename = paste('tmp/20180801_', eval_setting, '_test_results/', loc, '_fold', fold, '_test_res_cindex_r.csv', sep='')
+            save_filename = paste('tmp/20190901_', eval_setting, '_test_results/', loc, '_fold', fold, '_test_res_cindex_r.csv', sep='')
             write.table(new_df, save_filename, sep='\t', quote=FALSE, row.names=FALSE, col.names=TRUE)
             if (fold==1) {
                 all_ci = all_ci_tmp
@@ -48,8 +48,8 @@ for (eval_setting in c('no_purity1')) {
                                               pvalue_fold4=double(),
                                               pvalue_fold5=double(),
                                               stringsAsFactors=FALSE)
-        methods = c('baseline', 'pyclone', 'PhyloWGS', 'math_score', 'combination', 'sciclone', 'expands', 'CSR')
-        folder = c('protected_hg38_vcf', 'public_hg38_vcf')
+        methods = c('pyclone', 'PhyloWGS', 'math_score', 'combination', 'sciclone', 'expands', 'CSR')
+        folder = c('protected_hg38_vcf', 'public_hg38_vcf', 'protected_hg38_vcf_absolute')
         clinical_cindex_index = rownames(results[(results$ith_method=='none')&(results$folder=='none')&(results$additional_cols=='clonality+clinical'),])
         clinical_ngs_cindex_index = rownames(results[(results$ith_method=='none')&(results$folder=='none')&(results$additional_cols=='clonality+clinical+NGS'),])
         for (m in methods) {
@@ -98,7 +98,7 @@ for (eval_setting in c('no_purity1')) {
                 }
             }
         }
-        save_filename = paste('tmp/20180801_', eval_setting, '_test_results/', loc, '_comparison_cindex_r.csv', sep='')
+        save_filename = paste('tmp/20190901_', eval_setting, '_test_results/', loc, '_comparison_cindex_r.csv', sep='')
         write.table(comparison_test_df, save_filename, sep='\t', quote=FALSE, row.names=FALSE, col.names=TRUE)
     }
 }

@@ -73,16 +73,6 @@ def write_csr_input(ith_method, folder, patient):
         except IOError:
             print('no output available for PhyloWGS patient {} and folder {}'.format(patient, folder))
 
-    elif ith_method == 'baseline':
-        try:
-            m = pd.read_csv('results/{}/{}/{}/cluster_assignment_for_each_mutation.csv'.format(patient, ith_method, folder), sep='\t')
-            m = m.assign(chr=m.mutation_id.str.split('_').str[0].str.replace('chr', ''))
-            m = m.assign(pos=m.mutation_id.str.split('_').str[1])
-            m = m.assign(cp=m.vaf_cn)
-            m[out_cols].to_csv('results/{}/{}/{}/input_csr.tsv'.format(patient, ith_method, folder), sep='\t', index=False)
-        except IOError:
-            print('no output available for baseline patient {} and folder {}'.format(patient, folder))
-
     elif ith_method == 'expands':
         try:
             all_mut = pd.read_csv('results/{}/{}/{}/{}__{}.sps'.format(patient, ith_method, folder, patient, folder), sep='\t', skiprows=1)
@@ -94,6 +84,6 @@ def write_csr_input(ith_method, folder, patient):
             all_mut[out_cols].to_csv('results/{}/{}/{}/input_csr.tsv'.format(patient, ith_method, folder), sep='\t', index=False)
         except IOError:
             print('no output available for expands patient {} and folder {}'.format(patient, folder))
-for ith_method in ['pyclone', 'PhyloWGS', 'sciclone', 'baseline', 'expands']:
-    for folder in ['protected_hg38_vcf', 'public_hg38_vcf']:
+for ith_method in ['pyclone', 'PhyloWGS', 'sciclone', 'expands']:
+    for folder in ['protected_hg38_vcf', 'public_hg38_vcf', 'protected_hg38_vcf_absolute']:
         write_csr_input(ith_method, folder, patient)

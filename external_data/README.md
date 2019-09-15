@@ -12,3 +12,6 @@ and reports immune signatures
 
 **ensembl_entrez.txt**
 was downloaded from Ensembl biomart on March 26th 2018 to match Ensembl Gene Ids (from TCGA RNAseq data) with gene Entrez Id (from Bindea's immune signatures table)
+
+**TCGA_mastercalls.abs_tables_JSedit.fixed.txt and TCGA_mastercalls.abs_segtabs.fixed.txt**
+are results from ABSOLUTE for purity and ploidy, and allele-specific copy number for the TCGA, downloaded from [the TCGA pancancer data portal](https://gdc.cancer.gov/about-data/publications/pancanatlas) on August 18th 2019.

@@ -107,3 +107,14 @@ for file_type in ['qc', 'public']:
 union_patients = list(set(patient_list_list[0]).union(set(patient_list_list[1])))
 udf = pd.DataFrame(union_patients, columns=['patient_id'], index=range(1, len(union_patients)+1))
 udf.to_csv('official_patient_list.csv', header=False)
+
+# adding absolute copy number
+useful_final_merge_cnv_purity = pd.read_csv('tmp/useful_final_qc_merge_cnv_purity.csv', sep='\t')
+abs_data = pd.read_csv('data/pancancer/ABSOLUTE_cnasHg38.tsv', sep='\t')
+abs_data = abs_data.assign(patient_id=abs_data.Sample.str[:12])
+abs_data = abs_data.assign(key=abs_data.patient_id+'_'+abs_data.Chromosome.astype(str))
+tmp_useful_final_merge_cnv = pd.merge(useful_final_merge_cnv_purity, abs_data, left_on='key', right_on='key', how='left')
+tmp_useful_final_merge_cnv = tmp_useful_final_merge_cnv[((tmp_useful_final_merge_cnv.position >= tmp_useful_final_merge_cnv.Start) & (tmp_useful_final_merge_cnv.position <= tmp_useful_final_merge_cnv.End))]
+tmp_useful_final_merge_cnv.to_csv('tmp/useful_final_qc_merge_cnv_purity_absolute.csv', sep='\t', index=False)
+
+

@@ -18,6 +18,7 @@ segment_liftover -l $liftover_path -i ASCAT_TCGA -o liftover_ASCAT_TCGA -c hg19T
 import pandas as pd
 
 # next step is to merge all those files, and put them in wanted format
+# ASCAT copy number
 colnames = ['participant', 'chromosome', 'start', 'stop', 'major', 'minor']
 cancer_locs = ['BRCA', 'BLCA', 'HNSC']
 liftover_tables = dict()
@@ -45,3 +46,26 @@ bbsub = bb.drop_duplicates(subset=['key', 'start'], keep='last')
 bbsub = bbsub.assign(stop=bbsub.stop_new)
 
 bbsub[big_table.columns].to_csv('data/pancancer/liftover_ASCAT_TCGA/cnasHg38.tsv', sep='\t', index=False)
+
+# ABSOLUTE copy number
+absolute_cn = pd.read_csv(
+    'external_data/TCGA_mastercalls.abs_segtabs.fixed.liftover_output.txt',
+    sep='\t')
+absolute_cn = absolute_cn.assign(
+    key=absolute_cn.Sample+'_'+absolute_cn.Chromosome.astype(str))
+absolute_cn_m = pd.merge(absolute_cn, absolute_cn, left_on='key',
+                         right_on='key', how='left',
+                         suffixes=['', '_right'])
+aa = absolute_cn_m[(absolute_cn_m.Start < absolute_cn_m.End_right) &
+                   (absolute_cn_m.End > absolute_cn_m.Start_right) &
+                   (absolute_cn_m.Start <= absolute_cn_m.Start_right)]
+aa = aa.assign(End_new=aa.apply(lambda x: x.Start_right-1 if
+                                (x.Start < x.Start_right < x.End)
+                                else x.End, axis=1))
+aasub = aa.drop_duplicates(subset=['key', 'Start'], keep='last')
+aasub = aasub.assign(End=aasub.End_new)
+
+aasub[absolute_cn.columns].to_csv('data/pancancer/ABSOLUTE_cnasHg38.tsv',
+                                  sep='\t', index=False)
+
+

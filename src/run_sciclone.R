@@ -24,8 +24,11 @@ if (is.null(opt$folder)){
 patient <- opt$patient
 folder <- opt$folder
 
-
+if (grepl("absolute", folder)) {
+cnv_file = read.table(paste('results', patient, 'pyclone', 'absolute_hg38_cnv_table.csv', sep='/'), sep='\t', header=TRUE)
+} else {
 cnv_file = read.table(paste('results', patient, 'pyclone', 'ascat_hg38_cnv_table.csv', sep='/'), sep='\t', header=TRUE)
+}
 #cnv_to_use = cnv_file[,c('chromosome', 'Start', 'End', 'total_cn')]
 #cnv_file$abs_mean = 2^(cnv_file$Segment_Mean)*2
 cnv_file$total_cn = cnv_file$major + cnv_file$minor
