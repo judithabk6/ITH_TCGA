@@ -221,42 +221,42 @@ $JAVA/java -Xmx10g -jar $GATKV/GenomeAnalysisTK.jar -T DepthOfCoverage \
 --omitIntervalStatistics --includeDeletions --minMappingQuality 20 --minBaseQuality 13
 
 
-for srr in SRR3472566 SRR3472567 SRR3472569 SRR3472571; do
-JAVA=/bioinfo/local/build/Centos/java/jdk1.8.0_74/bin;
-GATKV=/bioinfo/local/build/Centos/GATK/GenomeAnalysisTK-3.5;
-$JAVA/java -Xmx10g -jar $GATKV/GenomeAnalysisTK.jar -T DepthOfCoverage \
--R /data/annotations/Galaxy/Human/hg19/bwa/hg19.fasta \
--I single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO5/$srr/Preprocess/$srr\_uniq.nodup.onTarget.q20.recal.bam \
--o single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO5/doc_$srr.doc \
--baseCounts \
--L external_data/CO5_malilik_positions.list \
---omitIntervalStatistics --includeDeletions --minMappingQuality 20 --minBaseQuality 13
-done
-
-for srr in SRR3472796 SRR3472798 SRR3472799 SRR3472800; do
+for srr in {SRR3472796,SRR3472799,SRR3472798,SRR3472800}; do
 JAVA=/bioinfo/local/build/Centos/java/jdk1.8.0_74/bin;
 GATKV=/bioinfo/local/build/Centos/GATK/GenomeAnalysisTK-3.5;
 $JAVA/java -Xmx10g -jar $GATKV/GenomeAnalysisTK.jar -T DepthOfCoverage \
 -R /data/annotations/Galaxy/Human/hg19/bwa/hg19.fasta \
 -I single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO8/$srr/Preprocess/$srr\_uniq.nodup.onTarget.q20.recal.bam \
--o single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO8/doc_$srr.doc \
+-o single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO8/doc_test$srr.doc \
 -baseCounts \
--L external_data/CO8_malilik_positions.list \
+-L single_cell_dataset/CRC_leung/CO8_malilik_positions.list \
 --omitIntervalStatistics --includeDeletions --minMappingQuality 20 --minBaseQuality 13
 done
 
-for srr in SRR1163508 SRR1298936; do
+
+for srr in {SRR3472571,SRR3472569,SRR3472567,SRR3472566}; do
 JAVA=/bioinfo/local/build/Centos/java/jdk1.8.0_74/bin;
 GATKV=/bioinfo/local/build/Centos/GATK/GenomeAnalysisTK-3.5;
 $JAVA/java -Xmx10g -jar $GATKV/GenomeAnalysisTK.jar -T DepthOfCoverage \
 -R /data/annotations/Galaxy/Human/hg19/bwa/hg19.fasta \
--I single_cell_dataset/BRCA_wang/ewok_results/BRCA_wang/$srr/Preprocess/$srr\_uniq.nodup.onTarget.q20.recal.bam \
--o single_cell_dataset/BRCA_wang/ewok_results/BRCA_wang/doc_$srr.doc \
+-I single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO5/$srr/Preprocess/$srr\_uniq.nodup.onTarget.q20.recal.bam \
+-o single_cell_dataset/CRC_leung/ewok_results/CRC_leung_CO5/doc_test$srr.doc \
+-baseCounts \
+-L external_data/CO5_malilik_positions.list \
+--omitIntervalStatistics --includeDeletions --minMappingQuality 20 --minBaseQuality 13
+done
+
+for srr in {BRCA_wang_tumor,BRCA_wang_constit}; do
+JAVA=/bioinfo/local/build/Centos/java/jdk1.8.0_74/bin;
+GATKV=/bioinfo/local/build/Centos/GATK/GenomeAnalysisTK-3.5;
+$JAVA/java -Xmx10g -jar $GATKV/GenomeAnalysisTK.jar -T DepthOfCoverage \
+-R /data/annotations/Galaxy/Human/hg19/bwa/hg19.fasta \
+-I single_cell_dataset/BRCA_wang/ewok_results/BRCA_wang/Preprocess/$srr\_uniq.nodup.onTarget.q20.recal.bam \
+-o single_cell_dataset/BRCA_wang/ewok_results/BRCA_wang/doc_test$srr.doc \
 -baseCounts \
 -L external_data/tnbc_positions_liftover_malilik.list \
 --omitIntervalStatistics --includeDeletions --minMappingQuality 20 --minBaseQuality 13
 done
-
 ./src/get_single_cell_ith_method_inpu.py
 
 # run ITH methods on the single cell dataset
