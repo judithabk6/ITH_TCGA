@@ -1,7 +1,7 @@
 CVXcanon==0.1.1
 cvxpy==0.4.11
 Cython==0.28.1
-ipython==6.3.1
+ipython==7.16.3
 ipython-genutils==0.2.0
 lifelines==0.14.1
 matplotlib==2.2.2
