@@ -1,4 +1,4 @@
 ipython==6.5.0
-numpy==1.15.0
+numpy==1.22.0
 pandas==0.23.4
 segment-liftover==0.951

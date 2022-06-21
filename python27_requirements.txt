@@ -1,7 +1,7 @@
 ete2==2.3.10
 ipython==4.0.0
 matplotlib==2.0.0
-numpy==1.13.1
+numpy==1.22.0
 pandas==0.20.3
 PyClone==0.13.0
 PyDP==0.2.2
